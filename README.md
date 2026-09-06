@@ -46,10 +46,10 @@ danmaku_bert/
 └── frp/                   # frp 客户端配置（内网穿透）
 ```
 
-依赖的兄弟目录（在 `d:/Code/` 下）：
+依赖的外部资源（**不在本仓库内**，clone 后需自备，详见下方「前置依赖」）：
 
 - `danmaku_data/`：训练集 `train.txt / dev.txt / test.txt / class.txt`
-- `Scraping/`：爬取 + LLM 标注 + 采样脚本，产出 `labeled_*.csv`
+- `Scraping/`：爬取 + LLM 标注 + 采样脚本，产出 `labeled_*.csv`（含敏感 key，未开源）
 - `PythonProject4/TMF/bert/bert-base-chinese`：复用的 BERT 预训练权重（避免重复下载 400MB）
 
 ## 快速开始
@@ -63,13 +63,37 @@ pip install -r requirements.txt
 # torch 建议按你的 CUDA 版本单独安装，见 requirements.txt 顶部注释
 ```
 
-### 2. 数据 & 模型路径
+### 2. 前置依赖：模型权重 + 数据（本仓库不含，需自备）
 
-`config.py` 集中配置了路径，默认约定：
+本仓库**不含** BERT 预训练权重（约 400MB）和训练数据，clone 后需自行准备，两项都由 [src/config.py](src/config.py) 集中配置。
 
-- 数据：`d:/Code/danmaku_data/`
-- BERT 权重：复用 `d:/Code/PythonProject4/TMF/bert/bert-base-chinese`
-- 训练好的模型：`danmaku_bert/model/`（`bert_classification_best.pth` 等）
+**① BERT 预训练权重（bert-base-chinese）**
+
+`config.py` 里 `bert_model_path` 默认指向本机一个固定路径，clone 后改成你自己的路径，或直接用 HuggingFace 模型 id 让 `transformers` 首次运行时自动下载：
+
+```python
+# src/config.py
+self.bert_model_path = "bert-base-chinese"   # 首次运行自动从 HuggingFace 下载
+# 或指向本地已下载的目录：
+# self.bert_model_path = "D:/models/bert-base-chinese"
+```
+
+`BertTokenizer.from_pretrained` 与 `BertModel.from_pretrained` 既接受本地目录，也接受 HF id，两者皆可。
+
+**② 数据（`train.txt / dev.txt / test.txt / class.txt`）**
+
+`config.py` 里 `data_dir` 默认指向仓库**上一级**的 `danmaku_data/`。数据格式：
+
+- `class.txt`：三行，`正面` / `中性` / `负面`
+- `train.txt` / `dev.txt` / `test.txt`：每行 `弹幕内容\t标签ID`，标签 ID 即 class.txt 的行序（0=正面、1=中性、2=负面）
+
+```
+# danmaku_data/train.txt 示例
+癫!	0
+到了我开始追番的季节了	1
+```
+
+本仓库只含「训练 → 压缩 → 部署」代码；**爬取 + LLM 标注 + 采样** 的脚本在 `Scraping/`（含敏感 key，未开源）。自备数据时按上述格式放好即可，原始语料可自行爬 B 站弹幕后套用同样的标注流程。
 
 ### 3. 启动
 
