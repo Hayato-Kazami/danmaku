@@ -1,0 +1,31 @@
+# ===== 弹幕情绪分析（danmaku_bert）依赖 =====
+# torch 建议按你的 CUDA 版本单独安装（本机 conda 环境 mldl，torch 2.13+cu132）
+# 例：pip install torch --index-url https://download.pytorch.org/whl/cu132
+torch>=2.0
+
+# 模型
+transformers>=4.30
+
+# 后端 API
+fastapi
+uvicorn[standard]
+pydantic
+
+# 前端
+streamlit
+plotly
+
+# 数据处理 & 传统 ML 基线
+pandas
+scikit-learn
+jieba
+
+# HTTP（前端 requests 调后端）
+requests
+
+# 弹幕爬取（bvid → 弹幕）
+bilibili-api-python
+
+# 训练辅助
+matplotlib
+tqdm

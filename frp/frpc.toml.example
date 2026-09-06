@@ -1,0 +1,13 @@
+# ===== frp 客户端配置（danmaku_bert 弹幕情绪分类项目）=====
+# 参照 TMF 部署：本机 frpc 主动连 VPS frps，只转发 Streamlit 端口，后端 8000 不暴露
+# 使用：复制为 frpc.toml，填入你的服务器 IP 与 auth.token（真实文件已被 .gitignore）
+serverAddr = "YOUR_VPS_IP"
+serverPort = 7000
+auth.token = "YOUR_AUTH_TOKEN"
+
+[[proxies]]
+name = "danmaku"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8502        # 转发本地的 Streamlit
+remotePort = 8502       # 映射到 VPS 的 8502 端口
