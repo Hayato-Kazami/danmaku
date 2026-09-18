@@ -1,3 +1,4 @@
+import os
 import time
 from pathlib import Path
 
@@ -34,12 +35,29 @@ class Config():
         Path(self.log_path).parent.mkdir(parents=True, exist_ok=True)
         Path(self.teacher_best_model_path).parent.mkdir(parents=True, exist_ok=True)
 
-        # BERT 模型路径（复用 TMF 项目已下载的 bert-base-chinese，避免重复下载约 400MB）
-        self.bert_model_path = str(Path(__file__).resolve().parents[2]
-                                   / 'PythonProject4' / 'TMF' / 'bert' / 'bert-base-chinese')
-        self.hidden_dim = 768
+        # BERT 预训练权重路径：默认取项目内的 model/bert-base-chinese（随项目走，整体搬目录也不会断）
+        # 目录内容：config.json / model.safetensors / tokenizer.json / tokenizer_config.json / vocab.txt
+        # 可用环境变量 BERT_MODEL_PATH 覆盖（指向别处的 bert-base-chinese 即可）。
+        # ⚠️ 注意：from_pretrained 遇到不存在的本地路径时不会说"路径不存在"，
+        #    而是把它当 HuggingFace repo id 去校验，误报 "Repo id must use alphanumeric chars"。
+        _default_bert_dir = project_dir / 'model' / 'bert-base-chinese'
+        self.bert_model_path = os.environ.get('BERT_MODEL_PATH', str(_default_bert_dir))
+        if not Path(self.bert_model_path).is_dir():
+            raise FileNotFoundError(
+                f'BERT 模型目录不存在：{self.bert_model_path}\n'
+                '  → 把 bert-base-chinese 放到 danmaku_bert/model/ 下，'
+                '或设环境变量 BERT_MODEL_PATH 指向真实目录。'
+            )
+        _missing = [f for f in ('config.json', 'vocab.txt', 'tokenizer.json')
+                    if not (Path(self.bert_model_path) / f).is_file()]
+        if _missing:
+            raise FileNotFoundError(
+                f'BERT 模型目录缺文件：{self.bert_model_path} 缺少 {_missing}\n'
+                '  → 完整权重应含 config.json / model.safetensors / tokenizer.json / vocab.txt。'
+            )
         self.tokenizer = BertTokenizer.from_pretrained(self.bert_model_path)
         self.vocab_size = self.tokenizer.vocab_size
+        self.hidden_dim = 768
 
         # 训练参数
         self.class_num = len(self.class_list)

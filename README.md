@@ -25,7 +25,7 @@
 
 ```
 danmaku_bert/
-├── api.py                 # FastAPI 后端（3 个接口）
+├── api.py                 # FastAPI 后端（4 个接口，含 /health 路径自检）
 ├── app.py                 # Streamlit 前端（情绪时间曲线产品）
 ├── api_test.py            # 后端冒烟测试
 ├── src/
@@ -41,7 +41,7 @@ danmaku_bert/
 │   ├── utils.py           # 数据加载 + WeightedRandomSampler
 │   ├── crawler.py         # bvid → 弹幕爬取
 │   └── error_analysis.py  # 错例分析
-├── model/                 # 训练好的权重（gitignore）
+├── model/                 # 训练权重 + bert-base-chinese 预训练权重（gitignore）
 ├── logs/                  # 训练日志
 └── frp/                   # frp 客户端配置（内网穿透）
 ```
@@ -50,7 +50,7 @@ danmaku_bert/
 
 - `danmaku_data/`：训练集 `train.txt / dev.txt / test.txt / class.txt`
 - `Scraping/`：爬取 + LLM 标注 + 采样脚本，产出 `labeled_*.csv`（含敏感 key，未开源）
-- `PythonProject4/TMF/bert/bert-base-chinese`：复用的 BERT 预训练权重（避免重复下载 400MB）
+- `PythonProject4/TMF/bert/bert-base-chinese`：BERT 预训练权重（约 400MB）。现已复制到本仓库 `model/bert-base-chinese/`，不再依赖外部项目路径
 
 ## 快速开始
 
@@ -65,20 +65,27 @@ pip install -r requirements.txt
 
 ### 2. 前置依赖：模型权重 + 数据（本仓库不含，需自备）
 
-本仓库**不含** BERT 预训练权重（约 400MB）和训练数据，clone 后需自行准备，两项都由 [src/config.py](src/config.py) 集中配置。
+本仓库**不含** BERT 预训练权重（约 400MB）和训练数据，clone 后需自行准备。路径全部由 [src/config.py](src/config.py) 集中配置。
 
 **① BERT 预训练权重（bert-base-chinese）**
 
-`config.py` 里 `bert_model_path` 默认指向本机一个固定路径，clone 后改成你自己的路径，或直接用 HuggingFace 模型 id 让 `transformers` 首次运行时自动下载：
+默认读**项目内**的 `model/bert-base-chinese/`——随项目走，整体搬目录也不会断：
 
 ```python
-# src/config.py
-self.bert_model_path = "bert-base-chinese"   # 首次运行自动从 HuggingFace 下载
-# 或指向本地已下载的目录：
-# self.bert_model_path = "D:/models/bert-base-chinese"
+# src/config.py（默认值，一般不用改）
+self.bert_model_path = str(project_dir / 'model' / 'bert-base-chinese')
 ```
 
-`BertTokenizer.from_pretrained` 与 `BertModel.from_pretrained` 既接受本地目录，也接受 HF id，两者皆可。
+想指向别处**不用改代码**，用环境变量覆盖即可：
+
+```bash
+setx BERT_MODEL_PATH "D:/models/bert-base-chinese"   # Windows，新开终端生效
+```
+
+目录里必须有这几项：`config.json`、`model.safetensors`、`tokenizer.json`、`vocab.txt`（缺哪个，`Config()` 实例化时会直接把文件名报出来）。
+
+> ⚠️ 路径不存在时 `from_pretrained` **不会**说"路径不存在"，而是把它当成 HuggingFace 仓库 id 去校验，
+> 误报 `Repo id must use alphanumeric chars...`。看到这个报错，先 `os.path.isdir(path)` 查目录。
 
 **② 数据（`train.txt / dev.txt / test.txt / class.txt`）**
 
@@ -149,9 +156,24 @@ python src/baseline.py         # 4. 传统基线（对照）
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | `/health` | 各模型路径的**实际解析结果** + 加载状态 + 运行设备。排查"模型找不到"先看它 |
 | POST | `/predict` | 单条情绪预测 |
 | POST | `/predict_batch` | 批量预测（`model_type`: teacher / student / quantized） |
 | POST | `/crawl_danmaku` | 爬 bvid 弹幕 |
+
+`model_type` 取值受约束（Pydantic `Literal`），传错会直接返回 422 而不是静默走到别的模型。
+错误统一返回 `{"error": "异常类型: 详情"}`，且错误消息里会带上**解析后的真实路径**。
+
+启动时可用的环境变量：
+
+| 变量 | 默认 | 作用 |
+|---|---|---|
+| `PRELOAD_MODELS` | `teacher` | 启动时预加载哪些模型（逗号分隔）。三个全预加载约占用 555 MB |
+| `API_HOST` / `API_PORT` | `127.0.0.1` / `8000` | 监听地址与端口 |
+| `BERT_MODEL_PATH` | 项目内 `model/bert-base-chinese` | 覆盖预训练权重目录（由 `src/config.py` 读取） |
+
+启动时终端会打印一张**路径自检表**（每个模型解析到哪、文件在不在、多大），
+哪个 `[MISS]` 一眼可见——不必等到调接口报错才发现路径不对。
 
 ## 部署（内网穿透）
 
